@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>RepoLens</title>
+</head>
+<body>
+    <h1>RepoLens 代码诊断助手</h1>
+
+    <label for="question">问题描述：</label>
+    <br>
+    <textarea id="question" rows="5" cols="60"></textarea>
+    <br>
+
+    <button id="submit" type="button">开始诊断</button>
+
+    <h2>诊断结果</h2>
+    <pre id="result" style="white-space: pre-wrap">等待诊断结果</pre>
+
+    <script>
+        const questionInput = document.getElementById("question");
+        const submitButton = document.getElementById("submit");
+        const resultOutput = document.getElementById("result");
+
+        function renderReport(report) {
+            const statusText = report.status === "hypothesis"
+                ? "根因假设（待验证）"
+                : "证据不足";
+
+            const evidenceText = report.evidence.map((item, index) => {
+                return `${index + 1}. ${item.path}:${item.start_line}-${item.end_line}\n${item.code}`;
+            }).join("\n\n") || "暂无代码证据";
+
+            const verificationText = report.verification.map((step, index) => {
+                return `${index + 1}. ${step}`;
+            }).join("\n") || "暂无验证步骤";
+
+            const missingText = report.missing_information.map((item, index) => {
+                return `${index + 1}. ${item}`;
+            }).join("\n") || "暂无待补充信息";
+
+            resultOutput.textContent = [
+                `诊断状态：${statusText}`,
+                "",
+                "诊断摘要", report.summary,
+                "",
+                "代码证据", evidenceText,
+                "",
+                "处理建议", report.suggestion,
+                "",
+                "验证步骤（尚未执行）", verificationText,
+                "",
+                "待补充信息", missingText
+            ].join("\n");
+        }
+
+        submitButton.addEventListener("click", async () => {
+            const question = questionInput.value.trim();
+
+            if (!question) {
+                resultOutput.textContent = "请输入问题描述";
+                return;
+            }
+
+            submitButton.disabled = true;
+            resultOutput.textContent = "正在诊断，请稍候……";
+
+            try {
+                const response = await fetch("/api/diagnose", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ question: question })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}：${errorText}`);
+                }
+
+                const report = await response.json();
+                renderReport(report);
+            } catch (error) {
+                resultOutput.textContent = `诊断失败：${error.message}`;
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
