@@ -9,7 +9,7 @@ def list_files(repo_dir: str) -> list[str]:
     root = Path(repo_dir).resolve()
 
     if not root.is_dir():
-        raise ValueError("repo_dir 必须是一个存在的目录")
+        raise ValueError("repo_dir must be an existing directory")
 
     ignored_dirs = {"venv", "__pycache__", "node_modules"}
     result = []
@@ -43,21 +43,21 @@ def read_file(
         end_line: int,
 ) -> str:
     if start_line < 1 or end_line < start_line:
-        raise ValueError("行号必须从1开始，结束行不能小于起始行")
+        raise ValueError("Line numbers start at 1, and the end line cannot be less than the start line")
 
     if end_line - start_line + 1 > 80:
-        raise ValueError("每次最多读取80行")
+        raise ValueError("At most 80 lines can be read per call")
 
     root = Path(repo_dir).resolve()
 
     if relative_path not in list_files(str(root)):
-        raise ValueError("只能读取 list_files 列出的 Python 文件")
+        raise ValueError("Only Python files listed by list_files can be read")
 
     file_path = root / relative_path
     lines = file_path.read_text(encoding="utf-8").splitlines()
 
     if start_line > len(lines):
-        raise ValueError("起始行超过文件总行数，或文件为空")
+        raise ValueError("start_line is beyond the end of the file, or the file is empty")
 
     actual_end = min(end_line, len(lines))
     result = []
@@ -71,7 +71,7 @@ def search_code(repo_dir: str, query: str) -> dict:
     keyword = query.strip().casefold()
 
     if not keyword:
-        raise ValueError("搜索关键字不能为空")
+        raise ValueError("The search keyword cannot be empty")
 
     root = Path(repo_dir).resolve()
     result = []
@@ -92,7 +92,7 @@ def search_code(repo_dir: str, query: str) -> dict:
                 })
 
     return {"matches": result, "truncated": False}
-                
+
 
 if __name__ == "__main__":
     repo_dir = str(Path(__file__).resolve().parent)
@@ -100,14 +100,14 @@ if __name__ == "__main__":
     content = read_readme(repo_dir)
     print(content)
 
-    print("\n---仓库中的python文件---")
+    print("\n--- Python files in the repository ---")
     for file_name in list_files(repo_dir):
         print(file_name)
 
-    print("\n---读取 tools.py 的第1到10行---")
+    print("\n--- Lines 1-10 of tools.py ---")
     print (read_file(repo_dir, "tools.py", 1, 10))
 
-    print("\n---搜索 read_readme---")
+    print("\n--- Search for read_readme ---")
     matches = search_code(repo_dir, "read_readme")["matches"]
 
     for match in matches:

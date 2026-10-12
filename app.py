@@ -21,7 +21,7 @@ class agentLLM:
         self.reasoning_effort = os.getenv("LLM_REASONING_EFFORT")
 
     def think(self,messages: List[Dict[str,str]], temperature: float = 1) ->str | None:
-        print(f"正在调用{self.model}模型")
+        print(f"Calling model {self.model}")
         try:
             response = self.client.chat.completions.create(
                 model       = self.model,
@@ -30,7 +30,7 @@ class agentLLM:
                 stream = True,
             )
 
-            print("大模型响应成功")
+            print("Model responded")
             collected_content = []
             for chunk in response:
                 if not chunk.choices:
@@ -42,7 +42,7 @@ class agentLLM:
             return "".join(collected_content)
 
         except Exception as e:
-            print(f"调用LLM API时发生报错: {e}")
+            print(f"LLM API call failed: {e}")
             return None
 
 if __name__ == '__main__':
@@ -51,28 +51,28 @@ if __name__ == '__main__':
 
         repo_dir    = str(Path(__file__).resolve().parent)
         readme_text = read_readme(repo_dir)
-        
+
         messages = [
             {
-                "role": "system", 
-                "content":( 
-                    "你是一个仓库阅读助手，只根据提供的 README 回答。"
-                    "区分已实现功能和计划功能，未说明的信息不要猜测"
+                "role": "system",
+                "content":(
+                    "You are a repository reading assistant. Answer only from the provided README. "
+                    "Distinguish implemented features from planned ones, and do not guess about anything the README does not state."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    "请介绍这个项目的用途、已实现功能和计划功能。\n\n"
-                    f"README 内容：\n{readme_text}"
+                    "Describe this project's purpose, implemented features, and planned features.\n\n"
+                    f"README:\n{readme_text}"
                 ),
             },
         ]
 
-        print("---调用LLM---")
+        print("--- Calling LLM ---")
         responseText = llmClient.think(messages)
         if responseText:
-            print("\n\n---完成模型响应---")
+            print("\n\n--- Model response complete ---")
             print(responseText)
 
     except ValueError as e:

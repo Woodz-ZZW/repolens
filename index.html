@@ -1,25 +1,25 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>RepoLens</title>
 </head>
 <body>
-    <h1>RepoLens 代码诊断助手</h1>
+    <h1>RepoLens Code Diagnosis</h1>
 
-    <label for="question">问题描述：</label>
+    <label for="question">Problem description:</label>
     <br>
     <textarea id="question" rows="5" cols="60"></textarea>
     <br>
 
-    <button id="submit" type="button">开始诊断</button>
+    <button id="submit" type="button">Diagnose</button>
 
-    <h2>诊断结果</h2>
-    <pre id="result" style="white-space: pre-wrap">等待诊断结果</pre>
+    <h2>Result</h2>
+    <pre id="result" style="white-space: pre-wrap">Waiting for a diagnosis</pre>
 
     <details>
-        <summary>工具记录</summary>
-        <pre id="trace" style="white-space: pre-wrap">暂无工具记录</pre>
+        <summary>Tool calls</summary>
+        <pre id="trace" style="white-space: pre-wrap">No tool calls yet</pre>
     </details>
 
     <script>
@@ -46,40 +46,40 @@
                         : JSON.stringify(result, null, 2);
                     return `${index + 1}. ${call.function.name} ${call.function.arguments}\n${resultText}`;
                 })
-                .join("\n\n") || "没有工具调用";
+                .join("\n\n") || "No tool calls";
         }
 
         function renderReport(report) {
             const statusText = report.status === "hypothesis"
-                ? "根因假设（待验证）"
-                : "证据不足";
+                ? "Root-cause hypothesis (unverified)"
+                : "Insufficient evidence";
 
             const evidenceText = report.evidence.map((item, index) => {
                 return `${index + 1}. ${item.path}:${item.start_line}-${item.end_line}\n${item.code}`;
-            }).join("\n\n") || "暂无代码证据";
+            }).join("\n\n") || "No code evidence";
 
             const verificationText = report.verification.map((step, index) => {
                 return `${index + 1}. ${step}`;
-            }).join("\n") || "暂无验证步骤";
+            }).join("\n") || "No verification steps";
 
             const missingText = report.missing_information.map((item, index) => {
                 return `${index + 1}. ${item}`;
-            }).join("\n") || "暂无待补充信息";
+            }).join("\n") || "No missing information";
 
             resultOutput.textContent = [
-                `诊断状态：${statusText}`,
+                `Status: ${statusText}`,
                 "",
-                "诊断摘要", report.summary,
+                "Summary", report.summary,
                 "",
-                "根因假设（推断，待验证）", report.root_cause || "无",
+                "Root cause (inferred, unverified)", report.root_cause || "None",
                 "",
-                "代码证据", evidenceText,
+                "Code evidence", evidenceText,
                 "",
-                "处理建议", report.suggestion,
+                "Suggestion", report.suggestion,
                 "",
-                "验证步骤（尚未执行）", verificationText,
+                "Verification steps (not run yet)", verificationText,
                 "",
-                "待补充信息", missingText
+                "Missing information", missingText
             ].join("\n");
         }
 
@@ -87,13 +87,13 @@
             const question = questionInput.value.trim();
 
             if (!question) {
-                resultOutput.textContent = "请输入问题描述";
+                resultOutput.textContent = "Please enter a problem description";
                 return;
             }
 
             submitButton.disabled = true;
-            resultOutput.textContent = "正在诊断，请稍候……";
-            traceOutput.textContent = "暂无工具记录";
+            resultOutput.textContent = "Diagnosing, please wait...";
+            traceOutput.textContent = "No tool calls yet";
 
             try {
                 const response = await fetch("/api/diagnose", {
@@ -106,7 +106,7 @@
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}：${errorText}`);
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
 
                 const data = await response.json();
@@ -115,10 +115,10 @@
                 if (data.report) {
                     renderReport(data.report);
                 } else {
-                    resultOutput.textContent = `诊断失败：${data.error}`;
+                    resultOutput.textContent = `Diagnosis failed: ${data.error}`;
                 }
             } catch (error) {
-                resultOutput.textContent = `诊断失败：${error.message}`;
+                resultOutput.textContent = `Diagnosis failed: ${error.message}`;
             } finally {
                 submitButton.disabled = false;
             }

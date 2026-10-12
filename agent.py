@@ -16,7 +16,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_files",
-            "description": "列出当前仓库中的 Python 文件相对路径，无需参数",
+            "description": "List the relative paths of Python files in the current repository. Takes no arguments.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -30,16 +30,16 @@ TOOLS = [
         "function": {
             "name": "search_code",
             "description": (
-                "在当前仓库的 Python 文件中搜索关键词，忽略大小写。"
-                "最多返回 15 处匹配，每处包含文件路径，行号和代码原文。"
-                "truncated 为 true 表示还有未返回的匹配。"
+                "Search Python files in the current repository for a keyword, case-insensitively. "
+                "Returns at most 15 matches, each with the file path, line number, and original line. "
+                "truncated is true when more matches were not returned."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "要搜索的非空关键词，由你根据用户问题选择。",
+                        "description": "A non-empty keyword to search for, chosen by you based on the user's question.",
                     },
                 },
                 "required": ["query"],
@@ -52,30 +52,30 @@ TOOLS = [
         "function": {
             "name": "read_file",
             "description": (
-                    "读取当前仓库中指定 Python 文件的一段代码，行号从 1 开始，"
-                    "结束行不能小于开始行。每次最多实际读取 80 行，"
-                    "超长请求先返回前 80 行。"
-                    "返回对象中的 content 是带行号原文，"
-                    "start_line 和 end_line 是实际读取范围，"
-                    "requested_end_line 是原请求的结束行。"
-                    "next_start_line 非空时，需要后续内容可尝试从该行继续读取。"
+                    "Read a range of lines from a Python file in the current repository. "
+                    "Line numbers start at 1, and the end line cannot be less than the start line. "
+                    "At most 80 lines are read per call; longer requests return the first 80 lines. "
+                    "In the result, content is the original text with line numbers, "
+                    "start_line and end_line are the range actually read, "
+                    "and requested_end_line is the end line originally requested. "
+                    "When next_start_line is not null, you can continue reading from that line if you need more."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "relative_path": {
                         "type": "string",
-                        "description": "当前仓库中 Python 文件的相对路径，例如 tools.py。",
+                        "description": "Relative path of a Python file in the current repository, e.g. tools.py.",
                     },
                     "start_line": {
                         "type": "integer",
                         "minimum": 1,
-                        "description": "开始行号，包含这一行。",
+                        "description": "Start line number, inclusive.",
                     },
                     "end_line": {
                         "type": "integer",
                         "minimum": 1,
-                        "description": "结束行号，包含这一行。",
+                        "description": "End line number, inclusive.",
                     },
                 },
                 "required": ["relative_path", "start_line", "end_line"],
@@ -99,42 +99,42 @@ def parse_report(text: str) -> dict:
     }
 
     if not isinstance(report, dict) or set(report) != set(field_types):
-        raise ValueError("报告必须包含且只能包含规定的七个字段")
+        raise ValueError("The report must contain exactly the seven required fields")
     for name, expected_type in field_types.items():
         if not isinstance(report[name], expected_type):
-            raise ValueError(f"字段 {name} 的类型不正确")
+            raise ValueError(f"Field {name} has the wrong type")
 
     if report["status"] not in ("hypothesis", "insufficient_evidence"):
-        raise ValueError("status 的值不正确")
+        raise ValueError("Invalid status value")
 
     if report["status"] == "hypothesis" and not report["root_cause"].strip():
-        raise ValueError("hypothesis 必须填写 root_cause")
+        raise ValueError("hypothesis requires a non-empty root_cause")
 
     for name in ("verification", "missing_information"):
         if any(not isinstance(item, str) for item in report[name]):
-            raise ValueError(f"字段 {name} 必须是字符串数组")
+            raise ValueError(f"Field {name} must be an array of strings")
 
     for item in report["evidence"]:
         expected_keys = {"path", "start_line", "end_line", "code"}
         if not isinstance(item, dict) or set(item) != expected_keys:
-            raise ValueError("每条证据必须包含 path、start_line、end_line、code")
+            raise ValueError("Each evidence item must contain path, start_line, end_line, and code")
 
         if not isinstance(item["path"], str) or not isinstance(item["code"], str):
-            raise ValueError("证据的 path 和 code 必须是字符串")
+            raise ValueError("Evidence path and code must be strings")
 
         start_line = item["start_line"]
         end_line = item["end_line"]
         if type(start_line) is not int or type(end_line) is not int:
-            raise ValueError("证据的 start_line 和 end_line 必须是整数")
+            raise ValueError("Evidence start_line and end_line must be integers")
 
         if start_line <1 or end_line < start_line:
-            raise ValueError("证据行号必须从 1 开始，结束行不能小于开始行")
+            raise ValueError("Evidence line numbers must start at 1, and the end line cannot be less than the start line")
 
     return report
 
 def validate_evidence(report: dict, read_evidence: dict) -> None:
     if report["status"] == "hypothesis" and not report["evidence"]:
-        raise ValueError("根因假设必须包含代码证据")
+        raise ValueError("A root-cause hypothesis must include code evidence")
 
     for item in report["evidence"]:
         path = item["path"]
@@ -145,11 +145,11 @@ def validate_evidence(report: dict, read_evidence: dict) -> None:
         for line_number in range(start_line, end_line +1):
             location = (path, line_number)
             if location not in read_evidence:
-                raise ValueError(f"证据引用了未读取的代码：{path}:{line_number}")
+                raise ValueError(f"Evidence cites code that was not read: {path}:{line_number}")
             lines.append(read_evidence[location])
 
         if item["code"] != "\n".join(lines):
-            raise ValueError(f"证据原文不一致：{path}:{start_line}-{end_line}")
+            raise ValueError(f"Evidence code does not match the source: {path}:{start_line}-{end_line}")
 
 def repo_fingerprint(repo_dir: str) -> str:
     root = Path(repo_dir).resolve()
@@ -181,7 +181,7 @@ def save_run(run_data: dict, started: float) -> None:
         json.dumps(run_data, ensure_ascii=False, indent=2),
         encoding = "utf-8"
     )
-    print(f"\n运行记录已保存：{output_path}")
+    print(f"\nRun record saved: {output_path}")
 
 def run_agent(repo_dir: str, question: str):
     started = perf_counter()
@@ -192,42 +192,42 @@ def run_agent(repo_dir: str, question: str):
         {
             "role": "system",
             "content": (
-                "你是一个仓库阅读助手。查询文件列表时调用 list_files。"
-                "查找代码时调用 search_code，自行根据问题选择搜索关键词。"
-                "搜索结果最多包含 15 处匹配，truncated 为 true 时换更具体的关键词继续搜索。"
-                "解释函数实现前，必须根据搜索结果调用 read_file，"
-                "读取函数的完整代码；若没有读全，继续读取。"
-                "只根据工具结果回答，引用文件路径、行号和代码原文，"
-                "没有足够结果时如实说明，不要猜测未读取的代码。"
-                "工具只扫描部分 Python 文件，回答必须注明检查范围。"
-                "搜索无匹配只代表本次搜索未找到，不能证明整个仓库不存在相关内容。"
-                "最终回答必须是合法的 JSON 对象，不要代码块或额外文字。"
-                "必须且只能包含以下七个字段："
-                "status、summary、root_cause、evidence、suggestion、verification、missing_information。"
-                "status 只能是 hypothesis（有代码支持的根因假设）"
-                "或 insufficient_evidence（证据不足）。"
-                "summary 和 suggestion 必须是字符串，summary 要说明检查范围。"
-                "root_cause 是字符串，写由证据推断出的根因假设；证据不足时为空字符串。"
-                "evidence 必须是数组，每项必须且只能包含 path、start_line、end_line、code。"
-                "path 是文件相对路径字符串，start_line 和 end_line 是正整数行号。"
-                "起始行和结束行都包含，结束行不能小于开始行。"
-                "单行证据的起始行和结束行相同。"
-                "code 是对应行段的连续原文，各行用换行符连接，保留缩进和空行。"
-                "解释判断分支时，优先引用包含条件和返回值的连续代码片段。"
-                "证据只引用本次成功调用 read_file 返回的代码，原文不含行号前缀。"
-                "hypothesis 必须提供至少一条代码证据。"
-                "没有代码证据时使用空数组，并将状态设为 insufficient_evidence。"
-                "verification 和 missing_information 必须是字符串数组。"
-                "verification 写尚未执行的验证步骤。"
-                "missing_information 写继续调查所需的材料，没有则为空数组。"
-                "证据不足时，suggestion 不得提出没有依据的代码修复。"
+                "You are a repository reading assistant. Call list_files to list files. "
+                "Call search_code to find code, choosing search keywords yourself based on the question. "
+                "Search results contain at most 15 matches; when truncated is true, search again with a more specific keyword. "
+                "Before explaining a function's implementation, you must call read_file based on the search results "
+                "to read the function's complete code; if you have not read all of it, keep reading. "
+                "Answer only from tool results, citing file paths, line numbers, and the original code. "
+                "If the results are insufficient, say so honestly and do not guess about code you have not read. "
+                "The tools only scan some Python files, so the answer must state the scope that was checked. "
+                "No search matches only means this search found nothing; it does not prove the repository lacks related content. "
+                "The final answer must be a valid JSON object, with no code fences or extra text. "
+                "It must contain exactly these seven fields: "
+                "status, summary, root_cause, evidence, suggestion, verification, missing_information. "
+                "status must be either hypothesis (a root-cause hypothesis supported by code) "
+                "or insufficient_evidence. "
+                "summary and suggestion must be strings; summary must state the scope that was checked. "
+                "root_cause is a string with the root-cause hypothesis inferred from the evidence; it is an empty string when evidence is insufficient. "
+                "evidence must be an array; each item must contain exactly path, start_line, end_line, and code. "
+                "path is the file's relative path as a string; start_line and end_line are positive integer line numbers. "
+                "Both the start line and the end line are inclusive, and the end line cannot be less than the start line. "
+                "For single-line evidence, the start line and the end line are the same. "
+                "code is the contiguous original text of those lines, joined with newlines, preserving indentation and blank lines. "
+                "When explaining a conditional branch, prefer citing a contiguous snippet that includes the condition and the return value. "
+                "Evidence may only cite code returned by successful read_file calls in this session, without line-number prefixes. "
+                "hypothesis requires at least one piece of code evidence. "
+                "If there is no code evidence, use an empty array and set status to insufficient_evidence. "
+                "verification and missing_information must be arrays of strings. "
+                "verification lists verification steps that have not been run yet. "
+                "missing_information lists the materials needed to continue the investigation, or is an empty array if none are needed. "
+                "When evidence is insufficient, suggestion must not propose code fixes without supporting evidence."
             ),
         },
         {
             "role": "user",
             "content": question,
         },
-    ] 
+    ]
 
     max_steps = 6
     max_tool_calls = 8
@@ -248,7 +248,7 @@ def run_agent(repo_dir: str, question: str):
         "error": None,
     }
     for step in range(1, max_steps + 1):
-        print(f"\n---第 {step} 轮模型调用---")
+        print(f"\n--- Model call {step} ---")
 
         is_final_step = step == max_steps or tool_calls_used >= max_tool_calls
 
@@ -256,11 +256,11 @@ def run_agent(repo_dir: str, question: str):
             messages.append({
                 "role": "user",
                 "content": (
-                    "本次调查已达到模型轮数或工具次数上限。"
-                    "请根据已有工具结果输出 JSON 诊断报告。"
-                    "证据不足时明确说明无法定位根因，"
-                    "并列出需要补充的材料"
-                    "不要猜测，也不要声称执行过测试。"
+                    "The investigation has reached the model-call or tool-call limit. "
+                    "Output the JSON diagnostic report based on the existing tool results. "
+                    "If the evidence is insufficient, state clearly that the root cause cannot be located "
+                    "and list the materials needed. "
+                    "Do not guess, and do not claim to have run any tests."
                 ),
             })
 
@@ -294,62 +294,62 @@ def run_agent(repo_dir: str, question: str):
                 validate_evidence(report, read_evidence)
             except ValueError as error:
                 report_error = str(error)
-                print(f"\n报告校验不合格：{error}")
-                print(message.content or "模型没有返回文本。")
+                print(f"\nReport validation failed: {error}")
+                print(message.content or "The model returned no text.")
                 messages.append({
                     "role": "user",
                     "content": (
-                        f"报告校验不合格：{error}。"
-                        "请修正后重新输出完整的 JSON 报告，不要代码块或额外文字。"
+                        f"Report validation failed: {error}. "
+                        "Fix it and output the complete JSON report again, with no code fences or extra text."
                     ),
                 })
                 continue
 
             run_data["report"] = report
-            print("\n---诊断报告---")
+            print("\n--- Diagnostic report ---")
             print(json.dumps(report, ensure_ascii=False, indent=2))
             save_run(run_data, started)
             return run_data
 
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
-            print(f"模型请求工具：{tool_name}")
+            print(f"Model requested tool: {tool_name}")
 
             try:
                 if tool_calls_used >= max_tool_calls:
-                    raise ValueError("工具调用次数已达上限，本次工具未执行")
-                
+                    raise ValueError("Tool call limit reached; this tool was not run")
+
                 tool_calls_used += 1
                 run_data["tool_calls_used"] = tool_calls_used
-                print(f"工具调用次数：{tool_calls_used}/{max_tool_calls}")
-                
+                print(f"Tool calls: {tool_calls_used}/{max_tool_calls}")
+
                 arguments = json.loads(tool_call.function.arguments)
-                print(f"工具参数：{arguments}")
+                print(f"Tool arguments: {arguments}")
 
                 if not isinstance(arguments, dict):
-                    raise ValueError("工具参数必须是一个 JSON 对象")
+                    raise ValueError("Tool arguments must be a JSON object")
 
                 if tool_name == "list_files":
                     if arguments != {}:
-                        raise ValueError("list_files 不需要模型提供参数")
+                        raise ValueError("list_files takes no arguments")
 
                     result = list_files(repo_dir)
 
                 elif tool_name == "search_code":
                     if set(arguments) != {"query"}:
-                        raise ValueError("search_code 必须且只能提供 query 参数")
+                        raise ValueError("search_code requires exactly one argument: query")
 
                     query = arguments["query"]
 
                     if not isinstance(query, str):
-                        raise ValueError("query 必须是字符串")
+                        raise ValueError("query must be a string")
 
                     result = search_code(repo_dir, query)
 
                 elif tool_name == "read_file":
                     if set(arguments) != {"relative_path", "start_line", "end_line"}:
                         raise ValueError(
-                            "read_file 必须且只能提供 relative_path、start_line、end_line 参数"
+                            "read_file requires exactly these arguments: relative_path, start_line, end_line"
                         )
 
                     relative_path = arguments["relative_path"]
@@ -357,10 +357,10 @@ def run_agent(repo_dir: str, question: str):
                     end_line = arguments["end_line"]
 
                     if not isinstance(relative_path, str):
-                        raise ValueError("relative_path 必须是字符串")
+                        raise ValueError("relative_path must be a string")
 
                     if type(start_line) is not int or type(end_line) is not int:
-                        raise ValueError("start_line 和 end_line 必须是整数")
+                        raise ValueError("start_line and end_line must be integers")
 
                     safe_end_line = min(end_line, start_line + 79)
                     content = read_file(
@@ -393,7 +393,7 @@ def run_agent(repo_dir: str, question: str):
                     }
 
                 else:
-                    raise ValueError(f"未知工具：{tool_name}")
+                    raise ValueError(f"Unknown tool: {tool_name}")
             except (ValueError, TypeError, OSError) as error:
                 result = {
                     "error": type(error).__name__,
@@ -401,7 +401,7 @@ def run_agent(repo_dir: str, question: str):
                 }
             result_text = json.dumps(result, ensure_ascii=False)
 
-            print(f"工具结果：{result_text}")
+            print(f"Tool result: {result_text}")
 
             messages.append({
                 "role": "tool",
@@ -409,21 +409,21 @@ def run_agent(repo_dir: str, question: str):
                 "content": result_text,
             })
 
-    print(f"\n达到 {max_steps} 轮调用上限，尚未得到最终回答。")
-    run_data["error"] = "达到模型调用轮数上限，尚未得到最终答案"
+    print(f"\nReached the limit of {max_steps} model calls without a final answer.")
+    run_data["error"] = "Reached the model call limit without a final answer"
     if report_error:
-        run_data["error"] += f"；最后一次报告校验错误：{report_error}"
+        run_data["error"] += f"; last report validation error: {report_error}"
     save_run(run_data, started)
     return run_data
 
 if __name__ == "__main__":
     repo_dir = "/Users/wz/repolens-case-more-itertools"
     question = (
-        "执行 list(windowed([], 2)) 得到 [(None, None)]，"
-        "但要求空输入时不产生窗口，结果应为 []。"
-        "请用工具检查当前仓库，定位原因，"
-        "提供代码证据、修复建议和验证步骤。"
-        "修复应保留非空输入不足窗口宽度时的填充行为。"
+        "Running list(windowed([], 2)) returns [(None, None)], "
+        "but an empty input should produce no windows, so the result should be []. "
+        "Use the tools to inspect the current repository, locate the cause, "
+        "and provide code evidence, a fix suggestion, and verification steps. "
+        "The fix should keep the padding behavior for non-empty inputs shorter than the window size."
     )
 
     run_agent(repo_dir, question)

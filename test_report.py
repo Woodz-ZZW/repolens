@@ -13,8 +13,8 @@ class ReportTests(unittest.TestCase):
         }
         self.report = {
             "status": "hypothesis",
-            "summary": "检查 checkout.py 中的运费判断。",
-            "root_cause": "条件使用 >，金额正好 50 时不免运费。",
+            "summary": "Checked the shipping condition in checkout.py.",
+            "root_cause": "The condition uses >, so an order of exactly 50 is not free.",
             "evidence": [{
                 "path": "checkout.py",
                 "start_line": 5,
@@ -25,8 +25,8 @@ class ReportTests(unittest.TestCase):
                     "    return SHIPPING_FEE"
                 ),
             }],
-            "suggestion": "比较条件改为 >=。",
-            "verification": ["尚未执行测试。"],
+            "suggestion": "Change the comparison to >=.",
+            "verification": ["Tests have not been run yet."],
             "missing_information": [],
         }
 
@@ -40,12 +40,12 @@ class ReportTests(unittest.TestCase):
 
     def test_unread_middle_line(self):
         del self.read_evidence[("checkout.py", 6)]
-        with self.assertRaisesRegex(ValueError, "未读取的代码"):
+        with self.assertRaisesRegex(ValueError, "was not read"):
             self.check_report()
     def test_changed_code(self):
         evidence = self.report["evidence"][0]
         evidence["code"] = evidence["code"].replace(">", ">=")
-        with self.assertRaisesRegex(ValueError, "原文不一致"):
+        with self.assertRaisesRegex(ValueError, "does not match"):
             self.check_report()
 
     def test_invalid_line_range(self):
@@ -59,7 +59,7 @@ class ReportTests(unittest.TestCase):
 
     def test_hypothesis_without_evidence(self):
         self.report["evidence"] = []
-        with self.assertRaisesRegex(ValueError, "必须包含代码证据"):
+        with self.assertRaisesRegex(ValueError, "must include code evidence"):
             self.check_report()
 
     def test_hypothesis_without_root_cause(self):
@@ -71,13 +71,13 @@ class ReportTests(unittest.TestCase):
         self.report["status"] = "insufficient_evidence"
         self.report["root_cause"] = ""
         self.report["evidence"] = []
-        self.report["suggestion"] = "请补充相关代码。"
-        self.report["missing_information"] = ["相关业务代码"]
+        self.report["suggestion"] = "Please provide the relevant code."
+        self.report["missing_information"] = ["Relevant business code"]
         self.assertEqual(self.check_report()["status"], "insufficient_evidence")
 
     def test_missing_report_field(self):
         del self.report["summary"]
-        with self.assertRaisesRegex(ValueError, "七个字段"):
+        with self.assertRaisesRegex(ValueError, "seven required fields"):
             self.check_report()
 
 if __name__ == "__main__":

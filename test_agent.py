@@ -11,12 +11,12 @@ DEMO_REPO = str(Path(__file__).resolve().parent / "demo_repo")
 
 FINAL_REPORT = {
     "status": "insufficient_evidence",
-    "summary": "模拟调查的证据不足。",
+    "summary": "The simulated investigation found insufficient evidence.",
     "root_cause": "",
     "evidence": [],
-    "suggestion": "请补充相关代码。",
+    "suggestion": "Please provide the relevant code.",
     "verification": [],
-    "missing_information": ["相关代码"],
+    "missing_information": ["Relevant code"],
 }
 
 
@@ -50,7 +50,7 @@ class AgentTests(unittest.TestCase):
             patch("agent.search_code") as search_tool,
             patch("builtins.print"),
         ):
-            run_agent(DEMO_REPO, "测试问题")
+            run_agent(DEMO_REPO, "Test question")
 
         save.assert_called_once()
         record = save.call_args.args[0]
@@ -104,16 +104,16 @@ class AgentTests(unittest.TestCase):
     def test_report_cites_read_lines(self):
         report = {
             "status": "hypothesis",
-            "summary": "检查了 checkout.py 的运费判断。",
-            "root_cause": "条件使用 >，金额正好 50 时不免运费。",
+            "summary": "Checked the shipping condition in checkout.py.",
+            "root_cause": "The condition uses >, so an order of exactly 50 is not free.",
             "evidence": [{
                 "path": "checkout.py",
                 "start_line": 5,
                 "end_line": 6,
                 "code": "    if total > FREE_SHIPPING_THRESHOLD:\n        return 0",
             }],
-            "suggestion": "把 > 改为 >=。",
-            "verification": ["调用 shipping_fee(50)，预期返回 0。"],
+            "suggestion": "Change > to >=.",
+            "verification": ["Call shipping_fee(50) and expect 0."],
             "missing_information": [],
         }
         call = tool_call(
@@ -128,11 +128,11 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(result.record["report"], report)
 
     def test_invalid_report_is_retried(self):
-        result = self.run_case([response(content="不是 JSON"), response()])
+        result = self.run_case([response(content="not JSON"), response()])
         self.assertEqual(result.llm.client.chat.completions.create.call_count, 2)
         self.assertEqual(result.record["report"], FINAL_REPORT)
         self.assertTrue(any(
-            "报告校验不合格" in item["content"]
+            "Report validation failed" in item["content"]
             for item in result.record["trace"]
             if isinstance(item, dict) and item["role"] == "user"
         ))

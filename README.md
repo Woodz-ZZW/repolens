@@ -1,28 +1,29 @@
 # RepoLens
 
-一个用于诊断本地 Python 仓库问题的 AI Agent。
+English | [简体中文](README.zh-CN.md)
 
-输入仓库路径和问题描述，Agent 自主选择搜索关键词、读取代码，
-输出根因假设、代码证据、修复建议和验证步骤。
+An AI agent that diagnoses problems in local Python repositories.
 
-## 已实现
+Give it a repository path and a problem description. The agent picks its own search keywords,
+reads the code, and returns a root-cause hypothesis, code evidence, a fix suggestion, and verification steps.
 
-- 文件列表、关键词搜索、带行号的代码读取工具。
-- 模型自主选择工具的调查循环。
-- 结构化 JSON 诊断报告。
-- 引用校验：证据必须来自本次实际读取的代码，并与原文一致。
-- 模型调用次数、工具调用次数和单次读取行数限制。
-- 命令行入口、网页演示、单元测试和固定案例评估。
-- 保存调查过程和最终报告。
+## Features
 
-核心流程：
+- Tools to list files, search by keyword, and read code with line numbers.
+- An investigation loop in which the model chooses its own tools.
+- A structured JSON diagnostic report.
+- Citation checks: evidence must come from code actually read in the current run and match the source exactly.
+- Limits on model calls, tool calls, and lines per read.
+- A command-line entry point, a web demo, unit tests, and fixed-case evaluation.
+- Saved investigation traces and final reports.
 
-问题 → 模型选择工具 → 执行工具 → 返回结果 → 继续调查 → 校验报告
+Core flow:
 
-## 安装
+question → model picks a tool → tool runs → result returns → investigation continues → report is validated
 
-开发环境为 Python 3.13.9。以下命令适用于 macOS/Linux，
-请在项目根目录执行：
+## Installation
+
+Developed with Python 3.13.9. Run these commands from the project root on macOS/Linux:
 
 ```bash
 python3.13 -m venv .venv
@@ -30,86 +31,86 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-在项目根目录创建 `.env`，将占位值替换为你的服务商配置：
+Create a `.env` file in the project root and replace the placeholders with your provider's settings:
 
 ```dotenv
-LLM_MODEL_ID=你的模型名称
-LLM_API_KEY=你的API密钥
-LLM_BASE_URL=你的OpenAI兼容API地址
+LLM_MODEL_ID=your-model-name
+LLM_API_KEY=your-api-key
+LLM_BASE_URL=your-openai-compatible-api-url
 LLM_TIMEOUT=60
 # LLM_REASONING_EFFORT=none
 ```
 
-模型需要支持工具调用。`.env` 保留在本地，不提交到 Git。
-`LLM_REASONING_EFFORT` 可选，只有服务商支持 `reasoning_effort` 参数时才设置；不设置时不发送该参数。
+The model must support tool calling. Keep `.env` local and do not commit it to Git.
+`LLM_REASONING_EFFORT` is optional. Set it only if your provider supports the `reasoning_effort` parameter; when it is unset, the parameter is not sent.
 
-## 命令行诊断
+## Command-line diagnosis
 
 ```bash
 python -B diagnose.py demo_repo \
-  "要求订单金额大于等于50元免运费，但金额正好50元时仍收取8元，请定位原因并提供代码证据。"
+  "Orders of 50 or more should ship free, but an order of exactly 50 is still charged 8. Find the cause and provide code evidence."
 ```
 
-第一个参数是仓库目录，第二个参数是问题描述。
-更换这两个参数即可诊断其他本地 Python 仓库。
+The first argument is the repository directory and the second is the problem description.
+Change them to diagnose another local Python repository.
 
-查看帮助：
+Show help:
 
 ```bash
 python -B diagnose.py --help
 ```
 
-## 网页演示
+## Web demo
 
 ```bash
 python -m uvicorn server:app --reload --port 8000
 ```
 
-打开 http://127.0.0.1:8000 ，输入问题并查看诊断报告。
-展开“工具记录”可查看每次工具调用的参数和返回结果；诊断失败时页面显示失败原因。
+Open http://127.0.0.1:8000, enter a problem, and view the diagnostic report.
+Expand "Tool calls" to see the arguments and result of each tool call. If the diagnosis fails, the page shows why.
 
-网页当前固定分析项目自带的 `demo_repo`。
-命令行入口可以指定其他仓库。
+The web demo always analyzes the bundled `demo_repo`.
+Use the command line to analyze other repositories.
 
-健康检查地址：http://127.0.0.1:8000/health
+Health check: http://127.0.0.1:8000/health
 
-## 测试与评估
+## Tests and evaluation
 
-单元测试使用模拟模型响应，不请求真实模型：
+Unit tests use mocked model responses and do not call a real model:
 
 ```bash
 python -B -m unittest test_tools test_report test_agent -v
 ```
 
-固定案例评估会请求真实模型：
+Fixed-case evaluation calls the real model:
 
 ```bash
 python -B evaluate.py
 ```
 
-评估检查报告状态、关键证据和必要字段。
-通过这些检查不等于已经证明根因判断正确。
+The evaluation checks report status, key evidence, and required fields.
+Passing these checks does not prove the root-cause judgment is correct.
 
-## 输出
+## Output
 
-诊断报告包含七个字段：
+The diagnostic report has seven fields:
 
-- `status`：根因假设或证据不足。
-- `summary`：诊断说明及检查范围。
-- `root_cause`：由证据推断出的根因假设，证据不足时为空。
-- `evidence`：文件路径、行号和代码原文。
-- `suggestion`：修复方向。
-- `verification`：尚未执行的验证步骤。
-- `missing_information`：继续调查需要补充的信息。
+- `status`: a root-cause hypothesis, or insufficient evidence.
+- `summary`: the diagnosis and the scope that was checked.
+- `root_cause`: the root-cause hypothesis inferred from the evidence; empty when evidence is insufficient.
+- `evidence`: file path, line numbers, and original code.
+- `suggestion`: the direction of the fix.
+- `verification`: verification steps that have not been run yet.
+- `missing_information`: what is needed to continue the investigation.
 
-运行记录保存在 `runs/`，评估结果保存在 `eval_results/`。
-评估结果中每个用例都记录了对应的运行记录文件、模型、调用次数和耗时。
+Run records are saved in `runs/` and evaluation results in `eval_results/`.
+Each case in an evaluation result records its run file, model, call counts, and elapsed time.
 
-## 当前边界
+## Limitations
 
-- 只检查工具允许访问的 Python 文件。
-- 每次读取最多80行；超长请求返回第一段及续读位置。
-- 每次调查最多6轮模型调用、8次工具调用。
-- 报告校验不合格时，错误会反馈给模型修正；重试计入6轮模型调用上限。
-- 读取代码并提出建议，不修改被分析的仓库，不执行其测试。
-- 引用校验证明代码确实被读取；根因和修复效果仍需实际验证。
+- Only checks Python files the tools are allowed to access.
+- Reads at most 80 lines per call; longer requests return the first part and where to continue.
+- Each investigation makes at most 6 model calls and 8 tool calls.
+- When a report fails validation, the error is sent back to the model to fix; retries count toward the 6-call limit.
+- Reads code and makes suggestions; it does not modify the analyzed repository or run its tests.
+- Citation checks prove the code was actually read; the root cause and the fix still need to be verified in practice.
