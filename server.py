@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi.responses import FileResponse
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent import run_agent
@@ -23,15 +23,13 @@ def health():
 
 @app.post("/api/diagnose")
 def diagnose(request: DiagnoseRequest):
-    report = run_agent(str(REPO_DIR), request.question)
+    run = run_agent(str(REPO_DIR), request.question)
 
-    if report is None:
-        raise HTTPException(
-            status_code=502,
-            detail="未得到合格报告，请检查服务端运行记录",
-        )
-
-    return report
+    return {
+        "report": run["report"],
+        "error": run["error"],
+        "trace": run["trace"],
+    }
 
 @app.get("/")
 def home():

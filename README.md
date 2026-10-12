@@ -37,9 +37,11 @@ LLM_MODEL_ID=你的模型名称
 LLM_API_KEY=你的API密钥
 LLM_BASE_URL=你的OpenAI兼容API地址
 LLM_TIMEOUT=60
+# LLM_REASONING_EFFORT=none
 ```
 
 模型需要支持工具调用。`.env` 保留在本地，不提交到 Git。
+`LLM_REASONING_EFFORT` 可选，只有服务商支持 `reasoning_effort` 参数时才设置；不设置时不发送该参数。
 
 ## 命令行诊断
 
@@ -64,6 +66,7 @@ python -m uvicorn server:app --reload --port 8000
 ```
 
 打开 http://127.0.0.1:8000 ，输入问题并查看诊断报告。
+展开“工具记录”可查看每次工具调用的参数和返回结果；诊断失败时页面显示失败原因。
 
 网页当前固定分析项目自带的 `demo_repo`。
 命令行入口可以指定其他仓库。
@@ -75,7 +78,7 @@ python -m uvicorn server:app --reload --port 8000
 单元测试使用模拟模型响应，不请求真实模型：
 
 ```bash
-python -B -m unittest test_report test_agent -v
+python -B -m unittest test_tools test_report test_agent -v
 ```
 
 固定案例评估会请求真实模型：
@@ -89,21 +92,24 @@ python -B evaluate.py
 
 ## 输出
 
-诊断报告包含六个字段：
+诊断报告包含七个字段：
 
 - `status`：根因假设或证据不足。
 - `summary`：诊断说明及检查范围。
+- `root_cause`：由证据推断出的根因假设，证据不足时为空。
 - `evidence`：文件路径、行号和代码原文。
 - `suggestion`：修复方向。
 - `verification`：尚未执行的验证步骤。
 - `missing_information`：继续调查需要补充的信息。
 
 运行记录保存在 `runs/`，评估结果保存在 `eval_results/`。
+评估结果中每个用例都记录了对应的运行记录文件、模型、调用次数和耗时。
 
 ## 当前边界
 
 - 只检查工具允许访问的 Python 文件。
 - 每次读取最多80行；超长请求返回第一段及续读位置。
 - 每次调查最多6轮模型调用、8次工具调用。
+- 报告校验不合格时，错误会反馈给模型修正；重试计入6轮模型调用上限。
 - 读取代码并提出建议，不修改被分析的仓库，不执行其测试。
 - 引用校验证明代码确实被读取；根因和修复效果仍需实际验证。

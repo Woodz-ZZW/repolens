@@ -18,6 +18,7 @@ class agentLLM:
             raise ValueError("Model ID, API key, and service address must be provided or defined in the .env file.")
 
         self.client = OpenAI(api_key=apiKey, base_url=baseUrl, timeout=timeout)
+        self.reasoning_effort = os.getenv("LLM_REASONING_EFFORT")
 
     def think(self,messages: List[Dict[str,str]], temperature: float = 1) ->str | None:
         print(f"正在调用{self.model}模型")

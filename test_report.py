@@ -14,6 +14,7 @@ class ReportTests(unittest.TestCase):
         self.report = {
             "status": "hypothesis",
             "summary": "检查 checkout.py 中的运费判断。",
+            "root_cause": "条件使用 >，金额正好 50 时不免运费。",
             "evidence": [{
                 "path": "checkout.py",
                 "start_line": 5,
@@ -61,8 +62,14 @@ class ReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "必须包含代码证据"):
             self.check_report()
 
+    def test_hypothesis_without_root_cause(self):
+        self.report["root_cause"] = " "
+        with self.assertRaisesRegex(ValueError, "root_cause"):
+            self.check_report()
+
     def test_insufficient_evidence(self):
         self.report["status"] = "insufficient_evidence"
+        self.report["root_cause"] = ""
         self.report["evidence"] = []
         self.report["suggestion"] = "请补充相关代码。"
         self.report["missing_information"] = ["相关业务代码"]
@@ -70,7 +77,7 @@ class ReportTests(unittest.TestCase):
 
     def test_missing_report_field(self):
         del self.report["summary"]
-        with self.assertRaisesRegex(ValueError, "六个字段"):
+        with self.assertRaisesRegex(ValueError, "七个字段"):
             self.check_report()
 
 if __name__ == "__main__":

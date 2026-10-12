@@ -15,6 +15,8 @@ cases = [
             "请检查代码，给出根因假设、证据和验证步骤。"
         ),
         "expected_status": "hypothesis",
+        "expected_path": "checkout.py",
+        "expected_line": 5,
     },
     {
         "name": "缺少登录代码",
@@ -32,6 +34,8 @@ cases = [
             "请定位造成50元边界错误的代码，给出证据和验证步骤。"
         ),
         "expected_status": "hypothesis",
+        "expected_path": "checkout.py",
+        "expected_line": 5,
     },
     {
         "name": "英文描述运费问题",
@@ -42,6 +46,8 @@ cases = [
             "code evidence, and verification steps."
         ),
         "expected_status": "hypothesis",
+        "expected_path": "checkout.py",
+        "expected_line": 5,
     },
     {
         "name": "缺少库存代码",
@@ -60,11 +66,16 @@ started_at = datetime.now().astimezone()
 for case in cases:
     print(f"\n开始评估: {case['name']}")
 
-    report = run_agent(str(repo_dir), case["question"])
+    run = run_agent(str(repo_dir), case["question"])
+    report = run["report"]
 
     case_result = {
         "case": case,
         "report": report,
+        "run": {
+            key: value for key, value in run.items()
+            if key not in ("trace", "report")
+        },
         "checks": {"得到合格报告": report is not None},
         "passed": False,
     }
@@ -78,9 +89,9 @@ for case in cases:
     }
 
     if case["expected_status"] == "hypothesis":
-        checks["引用运费判断行"] = any(
-            item["path"] == "checkout.py"
-            and item["start_line"] <= 5 <= item["end_line"]
+        checks["引用关键代码行"] = any(
+            item["path"] == case["expected_path"]
+            and item["start_line"] <= case["expected_line"] <= item["end_line"]
             for item in report["evidence"]
         )
         checks["列出验证步骤"] = bool(report["verification"])

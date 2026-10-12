@@ -17,10 +17,37 @@
     <h2>诊断结果</h2>
     <pre id="result" style="white-space: pre-wrap">等待诊断结果</pre>
 
+    <details>
+        <summary>工具记录</summary>
+        <pre id="trace" style="white-space: pre-wrap">暂无工具记录</pre>
+    </details>
+
     <script>
         const questionInput = document.getElementById("question");
         const submitButton = document.getElementById("submit");
         const resultOutput = document.getElementById("result");
+        const traceOutput = document.getElementById("trace");
+
+        function renderTrace(trace) {
+            const results = {};
+            for (const item of trace) {
+                if (item.role === "tool") {
+                    results[item.tool_call_id] = JSON.parse(item.content);
+                }
+            }
+
+            traceOutput.textContent = trace
+                .filter(item => item.role === "assistant" && item.tool_calls)
+                .flatMap(item => item.tool_calls)
+                .map((call, index) => {
+                    const result = results[call.id];
+                    const resultText = typeof result.content === "string"
+                        ? result.content
+                        : JSON.stringify(result, null, 2);
+                    return `${index + 1}. ${call.function.name} ${call.function.arguments}\n${resultText}`;
+                })
+                .join("\n\n") || "没有工具调用";
+        }
 
         function renderReport(report) {
             const statusText = report.status === "hypothesis"
@@ -44,6 +71,8 @@
                 "",
                 "诊断摘要", report.summary,
                 "",
+                "根因假设（推断，待验证）", report.root_cause || "无",
+                "",
                 "代码证据", evidenceText,
                 "",
                 "处理建议", report.suggestion,
@@ -64,6 +93,7 @@
 
             submitButton.disabled = true;
             resultOutput.textContent = "正在诊断，请稍候……";
+            traceOutput.textContent = "暂无工具记录";
 
             try {
                 const response = await fetch("/api/diagnose", {
@@ -79,8 +109,14 @@
                     throw new Error(`HTTP ${response.status}：${errorText}`);
                 }
 
-                const report = await response.json();
-                renderReport(report);
+                const data = await response.json();
+                renderTrace(data.trace);
+
+                if (data.report) {
+                    renderReport(data.report);
+                } else {
+                    resultOutput.textContent = `诊断失败：${data.error}`;
+                }
             } catch (error) {
                 resultOutput.textContent = `诊断失败：${error.message}`;
             } finally {

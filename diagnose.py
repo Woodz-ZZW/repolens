@@ -26,7 +26,7 @@ if __name__ == "__main__":
     if not repo_dir.is_dir():
         parser.error("repo_dir 必须是一个存在的目录")
 
-    report = run_agent(str(repo_dir), args.question)
+    run = run_agent(str(repo_dir), args.question)
 
-    if report is None:
-        raise SystemExit("未得到合格报告，请检查运行记录")
+    if run["report"] is None:
+        raise SystemExit(f"未得到合格报告：{run['error']}")

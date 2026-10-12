@@ -67,7 +67,7 @@ def read_file(
 
     return "\n".join(result)
 
-def search_code(repo_dir: str, query: str) -> list[dict]:
+def search_code(repo_dir: str, query: str) -> dict:
     keyword = query.strip().casefold()
 
     if not keyword:
@@ -82,16 +82,16 @@ def search_code(repo_dir: str, query: str) -> list[dict]:
 
         for line_number, line in enumerate(lines, start=1):
             if keyword in line.casefold():
+                if len(result) >= 15:
+                    return {"matches": result, "truncated": True}
+
                 result.append({
                     "path": relative_path,
                     "line": line_number,
                     "text": line,
                 })
 
-                if len(result) >= 15:
-                    return result
-
-    return result
+    return {"matches": result, "truncated": False}
                 
 
 if __name__ == "__main__":
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     print (read_file(repo_dir, "tools.py", 1, 10))
 
     print("\n---搜索 read_readme---")
-    matches = search_code(repo_dir, "read_readme")
+    matches = search_code(repo_dir, "read_readme")["matches"]
 
     for match in matches:
         print(f"{match['path']}:{match['line']}{match['text']}")

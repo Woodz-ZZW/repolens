@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from openai import omit
+
 from app import agentLLM
 from tools import list_files, search_code, read_file
 
@@ -30,6 +32,7 @@ TOOLS = [
             "description": (
                 "在当前仓库的 Python 文件中搜索关键词，忽略大小写。"
                 "最多返回 15 处匹配，每处包含文件路径，行号和代码原文。"
+                "truncated 为 true 表示还有未返回的匹配。"
             ),
             "parameters": {
                 "type": "object",
@@ -88,6 +91,7 @@ def parse_report(text: str) -> dict:
     field_types = {
         "status": str,
         "summary": str,
+        "root_cause": str,
         "evidence": list,
         "suggestion": str,
         "verification": list,
@@ -95,13 +99,16 @@ def parse_report(text: str) -> dict:
     }
 
     if not isinstance(report, dict) or set(report) != set(field_types):
-        raise ValueError("报告必须包含且只能包含规定的六个字段")
+        raise ValueError("报告必须包含且只能包含规定的七个字段")
     for name, expected_type in field_types.items():
         if not isinstance(report[name], expected_type):
             raise ValueError(f"字段 {name} 的类型不正确")
 
     if report["status"] not in ("hypothesis", "insufficient_evidence"):
         raise ValueError("status 的值不正确")
+
+    if report["status"] == "hypothesis" and not report["root_cause"].strip():
+        raise ValueError("hypothesis 必须填写 root_cause")
 
     for name in ("verification", "missing_information"):
         if any(not isinstance(item, str) for item in report[name]):
@@ -169,6 +176,7 @@ def save_run(run_data: dict, started: float) -> None:
 
     filename = datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ".json"
     output_path = output_dir / filename
+    run_data["run_file"] = str(output_path)
     output_path.write_text(
         json.dumps(run_data, ensure_ascii=False, indent=2),
         encoding = "utf-8"
@@ -186,7 +194,7 @@ def run_agent(repo_dir: str, question: str):
             "content": (
                 "你是一个仓库阅读助手。查询文件列表时调用 list_files。"
                 "查找代码时调用 search_code，自行根据问题选择搜索关键词。"
-                "搜索结果最多包含 15 处匹配，必要时调整关键词继续搜索。"
+                "搜索结果最多包含 15 处匹配，truncated 为 true 时换更具体的关键词继续搜索。"
                 "解释函数实现前，必须根据搜索结果调用 read_file，"
                 "读取函数的完整代码；若没有读全，继续读取。"
                 "只根据工具结果回答，引用文件路径、行号和代码原文，"
@@ -194,11 +202,12 @@ def run_agent(repo_dir: str, question: str):
                 "工具只扫描部分 Python 文件，回答必须注明检查范围。"
                 "搜索无匹配只代表本次搜索未找到，不能证明整个仓库不存在相关内容。"
                 "最终回答必须是合法的 JSON 对象，不要代码块或额外文字。"
-                "必须且只能包含以下六个字段："
-                "status、summary、evidence、suggestion、verification、missing_information。"
+                "必须且只能包含以下七个字段："
+                "status、summary、root_cause、evidence、suggestion、verification、missing_information。"
                 "status 只能是 hypothesis（有代码支持的根因假设）"
                 "或 insufficient_evidence（证据不足）。"
                 "summary 和 suggestion 必须是字符串，summary 要说明检查范围。"
+                "root_cause 是字符串，写由证据推断出的根因假设；证据不足时为空字符串。"
                 "evidence 必须是数组，每项必须且只能包含 path、start_line、end_line、code。"
                 "path 是文件相对路径字符串，start_line 和 end_line 是正整数行号。"
                 "起始行和结束行都包含，结束行不能小于开始行。"
@@ -224,6 +233,7 @@ def run_agent(repo_dir: str, question: str):
     max_tool_calls = 8
     tool_calls_used = 0
     read_evidence = {}
+    report_error = None
     run_data = {
         "started_at": started_at,
         "question": question,
@@ -262,14 +272,14 @@ def run_agent(repo_dir: str, question: str):
                 messages = messages,
                 tools = TOOLS,
                 tool_choice = "none" if is_final_step else "auto",
-                reasoning_effort="none",
+                reasoning_effort = llmClient.reasoning_effort or omit,
                 stream = False,
             )
         except Exception as error:
             run_data["usage"].append(None)
             run_data["error"] = f"{type(error).__name__}: {error}"
             save_run(run_data, started)
-            raise
+            return run_data
 
         message = response.choices[0].message
         run_data["usage"].append(
@@ -283,28 +293,23 @@ def run_agent(repo_dir: str, question: str):
                 report = parse_report(message.content or "")
                 validate_evidence(report, read_evidence)
             except ValueError as error:
-                run_data["error"] = str(error)
+                report_error = str(error)
                 print(f"\n报告校验不合格：{error}")
                 print(message.content or "模型没有返回文本。")
-                save_run(run_data, started)
-                return
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"报告校验不合格：{error}。"
+                        "请修正后重新输出完整的 JSON 报告，不要代码块或额外文字。"
+                    ),
+                })
+                continue
 
             run_data["report"] = report
             print("\n---诊断报告---")
             print(json.dumps(report, ensure_ascii=False, indent=2))
             save_run(run_data, started)
-            return report
-
-        if not message.tool_calls:
-            try:
-                report = parse_report(message.content or "")
-                validate_evidence(report, read_evidence)
-            except ValueError as error:
-                run_data["error"] = str(error)
-                print(f"\n报告校验不合格：{error}")
-                print(message.content or "模型没有返回文本。")
-                save_run(run_data, started)
-                return
+            return run_data
 
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
@@ -406,7 +411,10 @@ def run_agent(repo_dir: str, question: str):
 
     print(f"\n达到 {max_steps} 轮调用上限，尚未得到最终回答。")
     run_data["error"] = "达到模型调用轮数上限，尚未得到最终答案"
+    if report_error:
+        run_data["error"] += f"；最后一次报告校验错误：{report_error}"
     save_run(run_data, started)
+    return run_data
 
 if __name__ == "__main__":
     repo_dir = "/Users/wz/repolens-case-more-itertools"
