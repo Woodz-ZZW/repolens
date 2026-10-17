@@ -16,6 +16,7 @@ reads the code, and returns a root-cause hypothesis, code evidence, a fix sugges
 - Limits on model calls, tool calls, and lines per read.
 - A command-line entry point, a web demo, unit tests, and fixed-case evaluation.
 - Saved investigation traces and final reports.
+- Run records saved to PostgreSQL (`runs` and `evidence` tables) as well as JSON files.
 
 Core flow:
 
@@ -43,6 +44,38 @@ LLM_TIMEOUT=60
 
 The model must support tool calling. Keep `.env` local and do not commit it to Git.
 `LLM_REASONING_EFFORT` is optional. Set it only if your provider supports the `reasoning_effort` parameter; when it is unset, the parameter is not sent.
+
+## Database (PostgreSQL)
+
+Each run is also saved to PostgreSQL. If the database is not running, the run still completes and is saved only to `runs/`.
+
+Install and start PostgreSQL on macOS:
+
+```bash
+brew install postgresql@18
+brew services start postgresql@18
+echo 'export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+createdb repolens
+```
+
+Create the tables and import existing run records (safe to run again):
+
+```bash
+python -B db.py
+```
+
+The connection defaults to `dbname=repolens`. Set `DATABASE_URL` to use another database.
+
+Tables:
+
+- `runs`: one row per diagnosis, with the full report and trace stored as JSONB.
+- `evidence`: one row per evidence item, linked to `runs` by a foreign key.
+
+Example queries:
+
+```bash
+psql repolens -e -f sql/step6_queries.sql
+```
 
 ## Command-line diagnosis
 
@@ -103,7 +136,7 @@ The diagnostic report has seven fields:
 - `verification`: verification steps that have not been run yet.
 - `missing_information`: what is needed to continue the investigation.
 
-Run records are saved in `runs/` and evaluation results in `eval_results/`.
+Run records are saved in `runs/` and in the PostgreSQL `runs` table; evaluation results are saved in `eval_results/`.
 Each case in an evaluation result records its run file, model, call counts, and elapsed time.
 
 ## Limitations

@@ -16,6 +16,7 @@
 - 模型调用次数、工具调用次数和单次读取行数限制。
 - 命令行入口、网页演示、单元测试和固定案例评估。
 - 保存调查过程和最终报告。
+- 运行记录同时保存到 JSON 文件和 PostgreSQL（`runs` 与 `evidence` 表）。
 
 核心流程：
 
@@ -44,6 +45,38 @@ LLM_TIMEOUT=60
 
 模型需要支持工具调用。`.env` 保留在本地，不提交到 Git。
 `LLM_REASONING_EFFORT` 可选，只有服务商支持 `reasoning_effort` 参数时才设置；不设置时不发送该参数。
+
+## 数据库（PostgreSQL）
+
+每次运行也会保存到 PostgreSQL。数据库未启动时，运行仍会完成，只保存到 `runs/`。
+
+在 macOS 上安装并启动 PostgreSQL：
+
+```bash
+brew install postgresql@18
+brew services start postgresql@18
+echo 'export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+createdb repolens
+```
+
+建表并导入已有运行记录（可重复执行）：
+
+```bash
+python -B db.py
+```
+
+默认连接 `dbname=repolens`，可通过 `DATABASE_URL` 指定其他数据库。
+
+数据表：
+
+- `runs`：每次诊断一行，完整报告和调查轨迹以 JSONB 保存。
+- `evidence`：每条证据一行，通过外键关联 `runs`。
+
+示例查询：
+
+```bash
+psql repolens -e -f sql/step6_queries.sql
+```
 
 ## 命令行诊断
 
@@ -104,7 +137,7 @@ python -B evaluate.py
 - `verification`：尚未执行的验证步骤。
 - `missing_information`：继续调查需要补充的信息。
 
-运行记录保存在 `runs/`，评估结果保存在 `eval_results/`。
+运行记录保存在 `runs/` 和 PostgreSQL 的 `runs` 表，评估结果保存在 `eval_results/`。
 评估结果中每个用例都记录了对应的运行记录文件、模型、调用次数和耗时。
 
 ## 当前边界

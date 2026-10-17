@@ -11,6 +11,9 @@ from time import perf_counter
 
 from hashlib import sha256
 
+import psycopg
+from db import init_db, insert_run
+
 TOOLS = [
     {
         "type": "function",
@@ -166,8 +169,8 @@ def repo_fingerprint(repo_dir: str) -> str:
 def save_run(run_data: dict, started: float) -> None:
     run_data["elapsed_seconds"] = round(perf_counter() - started, 3)
     run_data["trace"] = [
-        item if isinstance(item, dict)
-        else item.model_dump(mode="json", exclude_none=True)
+        item if isinstance(item , dict)
+        else item.model_dump(mode = "json", exclude_none = True)
         for item in run_data["trace"]
     ]
 
@@ -182,6 +185,13 @@ def save_run(run_data: dict, started: float) -> None:
         encoding = "utf-8"
     )
     print(f"\nRun record saved: {output_path}")
+
+    try:
+        init_db()
+        run_id = insert_run(run_data)
+        print(f"Run saved to database: id={run_id}")
+    except psycopg.Error as exc:
+        print(f"Warning: run not saved to database: {exc}")
 
 def run_agent(repo_dir: str, question: str):
     started = perf_counter()
