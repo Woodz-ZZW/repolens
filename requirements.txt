@@ -5,3 +5,4 @@ pydantic==2.14.0
 uvicorn==0.54.0
 psycopg==3.3.6
 psycopg-binary==3.3.6
+httpx2==2.13.1

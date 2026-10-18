@@ -17,6 +17,7 @@
 - 命令行入口、网页演示、单元测试和固定案例评估。
 - 保存调查过程和最终报告。
 - 运行记录同时保存到 JSON 文件和 PostgreSQL（`runs` 与 `evidence` 表）。
+- REST API（`/api/runs`）：创建、列出、查询和删除运行记录，包含输入校验、API 密钥角色和基于 PostgreSQL 的集成测试。
 
 核心流程：
 
@@ -41,14 +42,24 @@ LLM_API_KEY=你的API密钥
 LLM_BASE_URL=你的OpenAI兼容API地址
 LLM_TIMEOUT=60
 # LLM_REASONING_EFFORT=none
+REPOLENS_USER_KEY=你的用户密钥
+REPOLENS_ADMIN_KEY=你的管理员密钥
 ```
 
 模型需要支持工具调用。`.env` 保留在本地，不提交到 Git。
 `LLM_REASONING_EFFORT` 可选，只有服务商支持 `reasoning_effort` 参数时才设置；不设置时不发送该参数。
 
+两个 `REPOLENS_*_KEY` 用于保护 REST API：用户密钥可以创建诊断，管理员密钥还可以删除记录。
+用下面的命令分别生成两个密钥：
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
 ## 数据库（PostgreSQL）
 
-每次运行也会保存到 PostgreSQL。数据库未启动时，运行仍会完成，只保存到 `runs/`。
+每次运行也会保存到 PostgreSQL。数据库未启动时，命令行运行仍会完成，只保存到 `runs/`。
+网页演示和 REST API 依赖数据库，数据库不可用时返回 `503`。
 
 在 macOS 上安装并启动 PostgreSQL：
 
@@ -100,7 +111,7 @@ python -B diagnose.py --help
 python -m uvicorn server:app --reload --port 8000
 ```
 
-打开 http://127.0.0.1:8000 ，输入问题并查看诊断报告。
+打开 http://127.0.0.1:8000 ，输入问题和用户密钥，查看诊断报告。
 展开“Tool calls”可查看每次工具调用的参数和返回结果；诊断失败时页面显示失败原因。
 
 网页当前固定分析项目自带的 `demo_repo`。
@@ -108,12 +119,50 @@ python -m uvicorn server:app --reload --port 8000
 
 健康检查地址：http://127.0.0.1:8000/health
 
-## 测试与评估
+## REST API
 
-单元测试使用模拟模型响应，不请求真实模型：
+网页演示的服务同时提供诊断记录的 REST API。
+交互式文档：http://127.0.0.1:8000/docs （点击 **Authorize** 输入密钥）。
+
+| 方法 | 路径 | 需要的密钥 | 成功 | 错误 |
+|---|---|---|---|---|
+| `POST` | `/api/runs` | 用户或管理员 | `201`，带 `Location` 响应头 | `401`、`422`、`503` |
+| `GET` | `/api/runs` | 无 | `200` | `422`、`503` |
+| `GET` | `/api/runs/{id}` | 无 | `200` | `404`、`422`、`503` |
+| `DELETE` | `/api/runs/{id}` | 管理员 | `204` | `401`、`403`、`404`、`503` |
+
+- 密钥放在 `X-API-Key` 请求头中。
+- `POST` 接收 `{"question": "..."}`（1–4000 个字符，不允许其他字段），用真实模型诊断 `demo_repo`，返回保存后的运行记录。
+- `GET /api/runs` 按时间倒序返回运行记录。`limit` 取 1–100（默认 10）；`status` 取 `hypothesis` 或 `insufficient_evidence`。
+
+错误码：
+
+- `401`：缺少密钥或密钥无效。
+- `403`：密钥有效但没有权限（删除需要管理员密钥）。
+- `404`：不存在该 id 的运行记录。
+- `422`：输入不合法，响应中会指出出错的字段和规则。
+- `503`：数据库不可用。
+
+示例：
 
 ```bash
-python -B -m unittest test_tools test_report test_agent -v
+export $(grep '^REPOLENS_' .env | xargs)
+curl -s 'http://127.0.0.1:8000/api/runs?limit=5&status=hypothesis'
+curl -s http://127.0.0.1:8000/api/runs/1
+curl -i -X POST http://127.0.0.1:8000/api/runs \
+  -H "X-API-Key: $REPOLENS_USER_KEY" -H "Content-Type: application/json" \
+  -d '{"question": "要求订单金额大于等于50元免运费，但金额正好50元时仍收取8元。"}'
+curl -i -X DELETE http://127.0.0.1:8000/api/runs/1 -H "X-API-Key: $REPOLENS_ADMIN_KEY"
+```
+
+## 测试与评估
+
+单元测试使用模拟模型响应，不请求真实模型。
+API 集成测试向应用发送真实的 HTTP 请求，并使用单独的 `repolens_test` 数据库，每个测试开始前会清空该库：
+
+```bash
+createdb repolens_test
+python -B -m unittest test_tools test_report test_agent test_api -v
 ```
 
 固定案例评估会请求真实模型：
@@ -148,3 +197,5 @@ python -B evaluate.py
 - 报告校验不合格时，错误会反馈给模型修正；重试计入6轮模型调用上限。
 - 读取代码并提出建议，不修改被分析的仓库，不执行其测试。
 - 引用校验证明代码确实被读取；根因和修复效果仍需实际验证。
+- API 密钥是 `.env` 中的固定值，没有用户账号和登录会话。
+- `POST /api/runs` 要等整个诊断完成后才返回响应。

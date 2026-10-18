@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import psycopg
+from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 DATABASE_URL = os.getenv("DATABASE_URL", "dbname=repolens")
@@ -94,17 +95,26 @@ def import_json_runs() -> int:
             inserted += 1
     return inserted
 
-def list_runs(limit: int = 10) -> list[tuple]:
-    with psycopg.connect(DATABASE_URL) as conn:
+def list_runs(limit: int = 10, status: str | None = None) -> list[dict]:
+    with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
         return conn.execute(
             """
             SELECT id, started_at, model, status, elapsed_seconds, question
             FROM runs
+            WHERE %(status)s::text IS NULL OR status = %(status)s
             ORDER BY started_at DESC
-            LIMIT %s
+            LIMIT %(limit)s
             """,
-            (limit,),
+            {"limit": limit, "status": status},
         ).fetchall()
+
+def get_run(run_id: int) -> dict | None:
+    with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
+        return conn.execute("SELECT * FROM runs WHERE id = %s", (run_id,)).fetchone()
+
+def delete_run(run_id: int) -> bool:
+    with psycopg.connect(DATABASE_URL) as conn:
+        return conn.execute("DELETE FROM runs WHERE id = %s", (run_id,)).rowcount == 1
 
 if __name__ == "__main__":
     init_db()

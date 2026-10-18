@@ -186,10 +186,11 @@ def save_run(run_data: dict, started: float) -> None:
     )
     print(f"\nRun record saved: {output_path}")
 
+    run_data["id"] = None
     try:
         init_db()
-        run_id = insert_run(run_data)
-        print(f"Run saved to database: id={run_id}")
+        run_data["id"] = insert_run(run_data)
+        print(f"Run saved to database: id={run_data['id']}")
     except psycopg.Error as exc:
         print(f"Warning: run not saved to database: {exc}")
 

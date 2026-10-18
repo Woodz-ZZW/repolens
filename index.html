@@ -11,6 +11,9 @@
     <br>
     <textarea id="question" rows="5" cols="60"></textarea>
     <br>
+    <label for="api-key">API key:</label>
+    <input id="api-key" type="password">
+    <br>
 
     <button id="submit" type="button">Diagnose</button>
 
@@ -27,6 +30,7 @@
         const submitButton = document.getElementById("submit");
         const resultOutput = document.getElementById("result");
         const traceOutput = document.getElementById("trace");
+        const apiKeyInput = document.getElementById("api-key");
 
         function renderTrace(trace) {
             const results = {};
@@ -96,10 +100,11 @@
             traceOutput.textContent = "No tool calls yet";
 
             try {
-                const response = await fetch("/api/diagnose", {
+                const response = await fetch("/api/runs", {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "X-API-Key": apiKeyInput.value
                     },
                     body: JSON.stringify({ question: question })
                 });
