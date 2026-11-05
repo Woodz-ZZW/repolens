@@ -1,8 +1,8 @@
-from pathlib import Path
-from agent import run_agent
-
 import json
 from datetime import datetime
+from pathlib import Path
+
+from agent import run_agent
 
 repo_dir = Path(__file__).resolve().parent / "demo_repo"
 
@@ -118,13 +118,11 @@ summary = {
 output_dir = Path(__file__).resolve().parent / "eval_results"
 output_dir.mkdir(exist_ok=True)
 
-output_path = output_dir / started_at.strftime(
-     "%Y%m%d_%H%M%S_%f.json"
-)
+output_path = output_dir / started_at.strftime("%Y%m%d_%H%M%S_%f.json")
 
 output_path.write_text(
     json.dumps(summary, ensure_ascii=False, indent=2),
-    encoding = "utf-8"
+    encoding="utf-8",
 )
 
 print(f"Evaluation results saved: {output_path}")

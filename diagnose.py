@@ -3,7 +3,6 @@ from pathlib import Path
 
 from agent import run_agent
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="RepoLens: diagnose a local Python repository"

@@ -5,7 +5,6 @@ from pathlib import Path
 
 from tools import list_files, read_file, search_code
 
-
 DEMO_REPO = str(Path(__file__).resolve().parent / "demo_repo")
 
 

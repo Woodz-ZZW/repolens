@@ -1,9 +1,11 @@
 import os
 from pathlib import Path
 
+
 def read_readme(repo_dir: str) -> str:
-    readme_path = Path(repo_dir)/ "README.md"
+    readme_path = Path(repo_dir) / "README.md"
     return readme_path.read_text(encoding="utf-8")
+
 
 def list_files(repo_dir: str) -> list[str]:
     root = Path(repo_dir).resolve()
@@ -36,11 +38,12 @@ def list_files(repo_dir: str) -> list[str]:
 
     return sorted(result)
 
+
 def read_file(
-        repo_dir: str,
-        relative_path: str,
-        start_line: int,
-        end_line: int,
+    repo_dir: str,
+    relative_path: str,
+    start_line: int,
+    end_line: int,
 ) -> str:
     if start_line < 1 or end_line < start_line:
         raise ValueError("Line numbers start at 1, and the end line cannot be less than the start line")
@@ -62,10 +65,11 @@ def read_file(
     actual_end = min(end_line, len(lines))
     result = []
 
-    for line_number in range(start_line, actual_end +1):
+    for line_number in range(start_line, actual_end + 1):
         result.append(f"{line_number}: {lines[line_number - 1]}")
 
     return "\n".join(result)
+
 
 def search_code(repo_dir: str, query: str) -> dict:
     keyword = query.strip().casefold()
@@ -105,10 +109,10 @@ if __name__ == "__main__":
         print(file_name)
 
     print("\n--- Lines 1-10 of tools.py ---")
-    print (read_file(repo_dir, "tools.py", 1, 10))
+    print(read_file(repo_dir, "tools.py", 1, 10))
 
     print("\n--- Search for read_readme ---")
     matches = search_code(repo_dir, "read_readme")["matches"]
 
     for match in matches:
-        print(f"{match['path']}:{match['line']}{match['text']}")
+        print(f"{match['path']}:{match['line']}: {match['text']}")

@@ -1,11 +1,10 @@
 import os
-from openai  import OpenAI
-from dotenv  import load_dotenv
-from typing  import List, Dict
-from pathlib import Path
-from tools   import read_readme
+
+from dotenv import load_dotenv
+from openai import OpenAI
 
 load_dotenv()
+
 
 class agentLLM:
     def __init__(self, model: str = None, apiKey: str = None, baseUrl: str = None, timeout: int = None):
@@ -20,60 +19,3 @@ class agentLLM:
         self.client = OpenAI(api_key=apiKey, base_url=baseUrl, timeout=timeout)
         self.reasoning_effort = os.getenv("LLM_REASONING_EFFORT")
 
-    def think(self,messages: List[Dict[str,str]], temperature: float = 1) ->str | None:
-        print(f"Calling model {self.model}")
-        try:
-            response = self.client.chat.completions.create(
-                model       = self.model,
-                messages    = messages,
-                temperature = temperature,
-                stream = True,
-            )
-
-            print("Model responded")
-            collected_content = []
-            for chunk in response:
-                if not chunk.choices:
-                    continue
-                content = chunk.choices[0].delta.content or ""
-                print(content, end="", flush=True)
-                collected_content.append(content)
-            print()
-            return "".join(collected_content)
-
-        except Exception as e:
-            print(f"LLM API call failed: {e}")
-            return None
-
-if __name__ == '__main__':
-    try:
-        llmClient = agentLLM()
-
-        repo_dir    = str(Path(__file__).resolve().parent)
-        readme_text = read_readme(repo_dir)
-
-        messages = [
-            {
-                "role": "system",
-                "content":(
-                    "You are a repository reading assistant. Answer only from the provided README. "
-                    "Distinguish implemented features from planned ones, and do not guess about anything the README does not state."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "Describe this project's purpose, implemented features, and planned features.\n\n"
-                    f"README:\n{readme_text}"
-                ),
-            },
-        ]
-
-        print("--- Calling LLM ---")
-        responseText = llmClient.think(messages)
-        if responseText:
-            print("\n\n--- Model response complete ---")
-            print(responseText)
-
-    except ValueError as e:
-        print(e)

@@ -10,6 +10,7 @@ from psycopg.types.json import Jsonb
 DATABASE_URL = os.getenv("DATABASE_URL", "dbname=repolens")
 RUNS_DIR = Path(__file__).resolve().parent / "runs"
 
+
 def init_db() -> None:
     with psycopg.connect(DATABASE_URL) as conn:
         conn.execute("""
@@ -28,7 +29,7 @@ def init_db() -> None:
                 error            TEXT,
                 trace            JSONB NOT NULL,
                 usage            JSONB NOT NULL,
-                run_file        TEXT NOT NULL UNIQUE
+                run_file         TEXT NOT NULL UNIQUE
             )
         """)
         conn.execute("""
@@ -40,11 +41,11 @@ def init_db() -> None:
                 end_line   INTEGER NOT NULL,
                 code       TEXT NOT NULL,
                 CHECK (end_line >= start_line)
-
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS evidence_run_id_idx ON evidence (run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS runs_started_at_idx ON runs (started_at)")
+
 
 def insert_run(run: dict) -> int | None:
     params = {
@@ -87,6 +88,7 @@ def insert_run(run: dict) -> int | None:
             )
     return run_id
 
+
 def import_json_runs() -> int:
     inserted = 0
     for path in sorted(RUNS_DIR.glob("*.json")):
@@ -94,6 +96,7 @@ def import_json_runs() -> int:
         if insert_run(run) is not None:
             inserted += 1
     return inserted
+
 
 def list_runs(limit: int = 10, status: str | None = None) -> list[dict]:
     with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
@@ -108,13 +111,16 @@ def list_runs(limit: int = 10, status: str | None = None) -> list[dict]:
             {"limit": limit, "status": status},
         ).fetchall()
 
+
 def get_run(run_id: int) -> dict | None:
     with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
         return conn.execute("SELECT * FROM runs WHERE id = %s", (run_id,)).fetchone()
 
+
 def delete_run(run_id: int) -> bool:
     with psycopg.connect(DATABASE_URL) as conn:
         return conn.execute("DELETE FROM runs WHERE id = %s", (run_id,)).rowcount == 1
+
 
 if __name__ == "__main__":
     init_db()
@@ -122,10 +128,9 @@ if __name__ == "__main__":
     assert import_json_runs() == 0
 
     bad_run = {
-        **json.loads(next(RUNS_DIR.glob("*.json")).read_text(encoding='utf-8')),
+        **json.loads(next(RUNS_DIR.glob("*.json")).read_text(encoding="utf-8")),
         "run_file": "rollback-test",
         "report": {"evidence": [{"path": "x.py", "start_line": 5, "end_line": 1, "code": "x"}]},
-
     }
     try:
         insert_run(bad_run)
@@ -135,7 +140,7 @@ if __name__ == "__main__":
         raise AssertionError("bad evidence was accepted")
     with psycopg.connect(DATABASE_URL) as conn:
         leftover = conn.execute("SELECT count(*) FROM runs WHERE run_file = 'rollback-test'").fetchone()[0]
-    
+    assert leftover == 0, "failed insert left a partial run behind"
 
     for row in list_runs():
         print(row)

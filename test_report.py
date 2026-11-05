@@ -42,6 +42,7 @@ class ReportTests(unittest.TestCase):
         del self.read_evidence[("checkout.py", 6)]
         with self.assertRaisesRegex(ValueError, "was not read"):
             self.check_report()
+
     def test_changed_code(self):
         evidence = self.report["evidence"][0]
         evidence["code"] = evidence["code"].replace(">", ">=")
@@ -79,6 +80,7 @@ class ReportTests(unittest.TestCase):
         del self.report["summary"]
         with self.assertRaisesRegex(ValueError, "seven required fields"):
             self.check_report()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 
 from agent import run_agent
 
-
 DEMO_REPO = str(Path(__file__).resolve().parent / "demo_repo")
 
 FINAL_REPORT = {

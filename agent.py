@@ -1,18 +1,15 @@
 import json
+from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
+from time import perf_counter
 
+import psycopg
 from openai import omit
 
 from app import agentLLM
-from tools import list_files, search_code, read_file
-
-from datetime import datetime
-from time import perf_counter
-
-from hashlib import sha256
-
-import psycopg
 from db import init_db, insert_run
+from tools import list_files, read_file, search_code
 
 TOOLS = [
     {
@@ -55,13 +52,13 @@ TOOLS = [
         "function": {
             "name": "read_file",
             "description": (
-                    "Read a range of lines from a Python file in the current repository. "
-                    "Line numbers start at 1, and the end line cannot be less than the start line. "
-                    "At most 80 lines are read per call; longer requests return the first 80 lines. "
-                    "In the result, content is the original text with line numbers, "
-                    "start_line and end_line are the range actually read, "
-                    "and requested_end_line is the end line originally requested. "
-                    "When next_start_line is not null, you can continue reading from that line if you need more."
+                "Read a range of lines from a Python file in the current repository. "
+                "Line numbers start at 1, and the end line cannot be less than the start line. "
+                "At most 80 lines are read per call; longer requests return the first 80 lines. "
+                "In the result, content is the original text with line numbers, "
+                "start_line and end_line are the range actually read, "
+                "and requested_end_line is the end line originally requested. "
+                "When next_start_line is not null, you can continue reading from that line if you need more."
             ),
             "parameters": {
                 "type": "object",
@@ -87,6 +84,7 @@ TOOLS = [
         },
     },
 ]
+
 
 def parse_report(text: str) -> dict:
     report = json.loads(text)
@@ -130,10 +128,11 @@ def parse_report(text: str) -> dict:
         if type(start_line) is not int or type(end_line) is not int:
             raise ValueError("Evidence start_line and end_line must be integers")
 
-        if start_line <1 or end_line < start_line:
+        if start_line < 1 or end_line < start_line:
             raise ValueError("Evidence line numbers must start at 1, and the end line cannot be less than the start line")
 
     return report
+
 
 def validate_evidence(report: dict, read_evidence: dict) -> None:
     if report["status"] == "hypothesis" and not report["evidence"]:
@@ -145,7 +144,7 @@ def validate_evidence(report: dict, read_evidence: dict) -> None:
         end_line = item["end_line"]
         lines = []
 
-        for line_number in range(start_line, end_line +1):
+        for line_number in range(start_line, end_line + 1):
             location = (path, line_number)
             if location not in read_evidence:
                 raise ValueError(f"Evidence cites code that was not read: {path}:{line_number}")
@@ -153,6 +152,7 @@ def validate_evidence(report: dict, read_evidence: dict) -> None:
 
         if item["code"] != "\n".join(lines):
             raise ValueError(f"Evidence code does not match the source: {path}:{start_line}-{end_line}")
+
 
 def repo_fingerprint(repo_dir: str) -> str:
     root = Path(repo_dir).resolve()
@@ -166,11 +166,12 @@ def repo_fingerprint(repo_dir: str) -> str:
         fingerprint.update(sha256(file_path.read_bytes()).digest())
     return fingerprint.hexdigest()
 
+
 def save_run(run_data: dict, started: float) -> None:
     run_data["elapsed_seconds"] = round(perf_counter() - started, 3)
     run_data["trace"] = [
-        item if isinstance(item , dict)
-        else item.model_dump(mode = "json", exclude_none = True)
+        item if isinstance(item, dict)
+        else item.model_dump(mode="json", exclude_none=True)
         for item in run_data["trace"]
     ]
 
@@ -182,7 +183,7 @@ def save_run(run_data: dict, started: float) -> None:
     run_data["run_file"] = str(output_path)
     output_path.write_text(
         json.dumps(run_data, ensure_ascii=False, indent=2),
-        encoding = "utf-8"
+        encoding="utf-8",
     )
     print(f"\nRun record saved: {output_path}")
 
@@ -193,6 +194,7 @@ def save_run(run_data: dict, started: float) -> None:
         print(f"Run saved to database: id={run_data['id']}")
     except psycopg.Error as exc:
         print(f"Warning: run not saved to database: {exc}")
+
 
 def run_agent(repo_dir: str, question: str):
     started = perf_counter()
@@ -279,12 +281,12 @@ def run_agent(repo_dir: str, question: str):
 
         try:
             response = llmClient.client.chat.completions.create(
-                model = llmClient.model,
-                messages = messages,
-                tools = TOOLS,
-                tool_choice = "none" if is_final_step else "auto",
-                reasoning_effort = llmClient.reasoning_effort or omit,
-                stream = False,
+                model=llmClient.model,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="none" if is_final_step else "auto",
+                reasoning_effort=llmClient.reasoning_effort or omit,
+                stream=False,
             )
         except Exception as error:
             run_data["usage"].append(None)
@@ -408,7 +410,7 @@ def run_agent(repo_dir: str, question: str):
             except (ValueError, TypeError, OSError) as error:
                 result = {
                     "error": type(error).__name__,
-                    "message": str(error)
+                    "message": str(error),
                 }
             result_text = json.dumps(result, ensure_ascii=False)
 
@@ -426,15 +428,3 @@ def run_agent(repo_dir: str, question: str):
         run_data["error"] += f"; last report validation error: {report_error}"
     save_run(run_data, started)
     return run_data
-
-if __name__ == "__main__":
-    repo_dir = "/Users/wz/repolens-case-more-itertools"
-    question = (
-        "Running list(windowed([], 2)) returns [(None, None)], "
-        "but an empty input should produce no windows, so the result should be []. "
-        "Use the tools to inspect the current repository, locate the cause, "
-        "and provide code evidence, a fix suggestion, and verification steps. "
-        "The fix should keep the padding behavior for non-empty inputs shorter than the window size."
-    )
-
-    run_agent(repo_dir, question)
